@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import { Searchbar } from "./Searchbar/Searchbar";
 import { ImageGallery } from "./ImageGallery/ImageGallery";
 import { Button } from "./Button/Button";
@@ -7,115 +7,82 @@ import { Modal } from "./Modal/Modal";
 import { fetchImagesByQuery } from "services/api";
 import { Report } from "notiflix";
 
-export class App extends React.Component {
-	state = {
-		images: [],
-		q: '',
-		page: 1,
-		per_page: 12,
-		totalHits: null,
-		isOpenModal: false,
-		currentImage: null,
-		loading: false,
-		error: null,
-	}
+export const App = () => {
+	const [images, setImages] = useState([])
+	const [q, setQ] = useState('')
+	const [page, setPage] = useState(1)
+	const [totalHits, setTotalHits] = useState(null)
+	const [isOpenModal, setIsOpenModal] = useState(false)
+	const [currentImage, setCurrentImage] = useState(null)
+	const [loading, setLoading] = useState(false)
+	const [error, setError] = useState(null)
 
-	myRef = React.createRef();
-
-	getSnapshotBeforeUpdate(_, prevState) {
-		if (prevState.images.length !== this.state.images.length) {
-			const scrollPosition = this.myRef.current.offsetTop;
-			return { scrollPosition };
-		}
-		return null;
-	}
-
-	async componentDidMount() {
-		try {
-			this.setState({ loading: true, error: null })
-			// const { hits, totalHits } = await fetchImagesByQuery()
-			// this.setState({ images: hits, totalHits })
-		} catch (error) {
-			this.setState({ error: error.message })
-			Report.failure( error )
-		} finally {
-			this.setState({ loading: false })
-		}
-	}
-  
-	async componentDidUpdate(_, prevState, snapshot) {
-		if (snapshot && prevState.images.length) {
-			const scrollPosition = this.myRef.current.offsetTop;
-			window.scrollTo({
-				top: scrollPosition - 1200,
-				behavior: "smooth",
-			})
-		}
-		if (
-			(this.state.q && prevState.q !== this.state.q) ||
-			(this.state.q && prevState.page !== this.state.page)
-		) {
-			try {
-				this.setState({ loading: true, error: null })
-
-				const { hits, totalHits  } = await fetchImagesByQuery({ page: this.state.page, q: this.state.q })
-
-				this.setState(prevState => ({ images: [...prevState.images, ...hits], totalHits }))
-			} catch (error) {
-				Report.failure( error )
-			} finally {
-				this.setState({ loading: false })
+	const getImages = useCallback (async () => {
+			if (q) {
+				try {
+					setLoading(true)
+					setError(null)
+					const { hits, totalHits } = await fetchImagesByQuery({ page, q })
+					setImages(prevState => [...prevState, ...hits])
+					setTotalHits(totalHits)
+				} catch (error) {
+					setError(error.message)
+					Report.failure(error.message)
+				} finally {
+					setLoading(false)
+				}
 			}
-		}
+	}, [page, q])
+	
+	useEffect(() => {
+		getImages()
+	}, [getImages, page, q])
+
+	const handleLoadMore = () => {
+	  setPage(prevState => prevState + 1 )
 	}
 
-	handleLoadMore = () => {
-	  this.setState(prevState => ({ page: prevState.page + 1 }))
-	}
-
-	handleSubmit = e => {
+	const handleSubmit = e => {
 		e.preventDefault()
-		this.setState({ q: e.target.elements.search.value, images: [], page: 1 })
+
+		setQ(e.target.elements.search.value)
+		setImages([])
+		setPage(1)
+		
 		e.target.reset()
 	}
 
-	handleOpenModal = ( image ) => {
-		this.setState({currentImage: image})
-		this.setState(prevState => ({ isOpenModal: !prevState.isOpenModal }))
-	}
-
-	handleToggleModal = () => {
-		this.setState(prevState => ({ isOpenModal: !prevState.isOpenModal }))
+	const handleToggleModal = () => {
+		setIsOpenModal(!isOpenModal)
 	}
 	
-	
-	render() {
-		const { images, currentImage, totalHits, isOpenModal, q,loading, error } = this.state
-		
-		return (
-			<div className="App">
-				<Searchbar onSubmit={this.handleSubmit} />
-				
-				<ImageGallery openModal={this.handleOpenModal} images={images}
-				/>
-
-				{!error && q && !loading && !images.length && <h1>Your query is not available</h1>}
+	const handleOpenModal = ( image ) => {
+		setCurrentImage(image)
+		handleToggleModal()
+	}
 
 
-				{error && <h1>Server is dead, try again later</h1>}
-				
-				{loading && !images.length && (
-					<Loader />
-				)}
-				
-				{images.length && images.length < totalHits ? (
-					<Button handleLoadMore={this.handleLoadMore} loading={loading} />
-				) : null}
-				
-				{isOpenModal && <Modal image={currentImage} closeModal={this.handleToggleModal} />}
+	return (
+		<div className="App">
+			<Searchbar onSubmit={handleSubmit} />
 
-				<div style={{ visibility: "hidden" }} ref={this.myRef}></div>
-      
-    </div>
-  )}
-};
+			<ImageGallery openModal={handleOpenModal} images={images}
+			/>
+			
+			{!error && q && !loading && !images.length && <h1>Your query is not available</h1>}
+			
+			{error && <h1>Server is dead, try again later</h1>}
+				
+			{loading && !images.length && (
+				<Loader />
+			)}
+			
+			{images.length && images.length < totalHits ? (
+				<Button handleLoadMore={handleLoadMore} loading={loading} />
+			) : null}
+			
+			{isOpenModal && <Modal image={currentImage} closeModal={handleToggleModal} />}
+			
+		</div>
+	)
+}
