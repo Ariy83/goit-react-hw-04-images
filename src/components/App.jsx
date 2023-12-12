@@ -18,7 +18,7 @@ export const App = () => {
 	const [error, setError] = useState(null)
 
 	const getImages = useCallback (async () => {
-			if (q) {
+			
 				try {
 					setLoading(true)
 					setError(null)
@@ -31,11 +31,13 @@ export const App = () => {
 				} finally {
 					setLoading(false)
 				}
-			}
+			
 	}, [page, q])
 	
 	useEffect(() => {
+    if (q) {
 		getImages()
+      }
 	}, [getImages, page, q])
 
 	const handleLoadMore = () => {
